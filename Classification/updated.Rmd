@@ -1,0 +1,421 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+##Treebased method for predictive modelling
+  
+```{r}
+
+echo = TRUE
+setwd("c:/Users/jasmine.qi/Documents/data cleaning")
+
+total= read.csv("derive.csv")
+
+
+##randomsize 70% of row of data as training set and test set
+
+
+#set.seed(15)
+
+indexes = sample(1:nrow(total), size= 0.7*nrow(total))
+train = total[indexes, ]
+test = total[-indexes, ]
+
+
+#k fold cross validation 
+library(caret)
+
+nrow(train)
+nrow(test)
+
+library(ggplot2)
+library(lattice)
+library(Metrics)
+## plot train and test dataset
+
+group <- rep(NA,842)
+group <- ifelse(seq(1,842) %in% indexes,"Train","Test")
+df <- data.frame(LoanID=total$LoanID,Loanscores=total$Loanscore)
+
+# ...and plot it
+ggplot(df,aes(x = LoanID,y = Loanscores, color = group)) + geom_point() +
+  scale_color_discrete(name="") + theme(legend.position="top")
+
+```
+##Function created
+
+```{r}
+#performance comparison
+tool.performance =  function(fit.model,test,train,name.=name,compare.=compare,check.lgcount=FALSE,check.update=TRUE){
+  
+  if(check.lgcount){
+    predictT.model.testing = predict(fit.model, newdat=test)
+    predictT.model.testing= exp(predictT.model.testing)
+    predictT.model.Training = predict(fit.model, newdat=train)
+    predictT.model.Training= exp(predictT.model.Training)
+    test$Loanscore =as.numeric(exp(test$logloanscore))
+    train$Loanscore = as.numeric(exp(train$logloanscore))
+    
+  } else{ 
+    predictT.model.testing = predict(fit.model, newdat=test)
+    if (any(predictT.model.testing<0)) {
+      predictT.model.testing[predictT.model.testing<0] <- 0
+    }
+    predictT.model.Training =predict(fit.model, newdat=subTrain)
+    if (any(predictT.model.Training<0)) {
+      predictT.model.Training[predictT.model.Training<0] = 0
+    }  
+  }
+
+  rmsle.Test = rmsle(test$Loanscore,predictT.model.testing)
+  rmse.Test = rmse(test$Loanscore,predictT.model.testing)
+  rmsle.Train = rmsle(train$Loanscore,predictT.model.Training)
+  rmse.Train = rmse(train$Loanscore,predictT.model.Training)
+  
+  diff <- summary(as.numeric(train$Loanscore - predictT.model.Training))
+  diff.Test <- summary(as.numeric(test$Loanscore - predictT.model.testing))
+  ll <- list('Test.rmsle'=rmsle.Test, 'Test.rmse'=rmse.Test, 'Train.RMSLE'=rmsle.Train, 
+             'Train.RMSE'=rmse.Train,'Test.diff.median'=as.numeric(diff.Test[3]),'Test.diff.mean'=as.numeric(diff.Test[4]),
+             'Train.diff.median'=as.numeric(diff[3]),'Train.diff.mean'=as.numeric(diff[4]))
+  if (check.update) {
+    compare.<-rbind(compare., mmm=ll)
+    rname <- rownames(compare.)
+    rname[nrow(compare.)] <- name.  
+    rownames(compare.) <- rname 
+  } else {
+    compare. <- as.data.frame(ll,row.names=name.)
+  }
+  compare.
+}
+
+
+
+```
+##Baseline model
+
+```{r}
+#predict the mean of the training data
+best_guess = mean(train$logloanscore)
+
+RMSE_baseline= sqrt(mean(best_guess-test$logloanscore)^2)
+RMSE_baseline
+
+MAE_baseline= mean(abs(best_guess-test$logloanscore))
+MAE_baseline
+
+```
+```{r}
+
+##Multilinear regression
+
+ formula=logloanscore ~ Absorption.Rate...prior.4.6.months. + 
+  Absorption.Rate...prior.7.12.months. + 
+  Absorption.Rate...prior.current.3.months. + Appraisal.Monthly.Rent + 
+  Appraisal.price + Assignment.Type + Bankrupcy + Baths + Bedrooms + 
+  Borrower.Age.Group + Borrower.Rent + Built.up + Charge.offs + 
+  Closed.Past.Auto.Late + Closed.Past.Education.Late + 
+  Closed.Past.Installment.Late + Closed.Past.Mortgage.Late + 
+  Closed.Revolving.Late + Collections + Comparable.properties.lower.price + 
+  Comparable.properties.upper.price + Comparable.sale.lower.price.range + 
+  Comparable.sale.upper.price.range + Condition + Credit.Score  + 
+  Current.Rent + Debt.High.Credit.... + Demand.Supply + 
+  distancemiles + DOM + Expected.cost.to.Rehab63 + Expected.flip.price + 
+  Foreclosure + Foreclosure.sales + 
+  Full.or.Part.Time.investor + Growth + Indicated.Value.by.Cost.Approach + 
+  Indicated.Value.by.Income.Approach + Interest.Rate + Lending.Value + 
+  Loan.Purpose + Loan.Term + Loan.Type + Location + LTV + Male.Female + 
+  Marketing.Time + Median.Comparable.List.Price.prior.4.6.months. + 
+  Median.Comparable.List.Price.prior.7.12.months. + 
+  Median.Comparable.List.Price.prior.current.3.months. + 
+  median.Comparable.listings.Days.on.Market.prior.4.6.months. + 
+  median.Comparable.listings.Days.on.Market.prior.7.12.months. + 
+  median.Comparable.listings.Days.on.Market.prior.current.3.months. + 
+  Median.Comparable.Sale.Price..prior.4.6.months. + 
+  Median.Comparable.Sale.Price..prior.7.12.months. + 
+  Median.Comparable.Sale.Price..prior.current.3.months. + 
+  Median.Comparable.sales.Days.on.market.prior.4.6.months. + 
+  Median.Comparable.sales.Days.on.market.prior.7.12.months. + 
+  Median.Comparable.sales.Days.on.market.prior.current.3.months. + 
+  Median.Sale.Price.a.s..of.List.Price.prior.4.6.months. + 
+  Median.Sale.Price.a.s..of.List.Price.prior.7.12.months. + 
+  Median.Sale.Price.a.s..of.List.Price.prior.current.3.months. + 
+  Months.of.Housing.Supply.prior.4.6.months. + 
+  Months.of.Housing.Supply.prior.7.12.months. + 
+  Months.of.Housing.Supply.prior.current.3.months. + Occupant + 
+  Open.Current.Auto.Late + Open.Current.Education.Late + 
+  Open.Current.Installment.Late + Open.Current.Mortgage.Late + 
+  Open.Current.Revolving.Late  + Origination.UPB + 
+  OrigTransdays + Price.of.Prior.Sale.Transfer+ 
+  Property.Values + Rent.Own + Repeat + Rooms + Sale.Price + Size + 
+  Square.feet.of.gross.living.area  + 
+  Subject..PropertyState + Total...of.Comarable.Sales...prior.4.6.months. + 
+  Total...of.Comarable.Sales...prior.7.12.months. + 
+  Total...of.Comarable.Sales...prior.current.3.months. + 
+  Total...of.Comparable.Active.listings.prior.4.6.months. + 
+  Total...of.Comparable.Active.listings.prior.7.12.months. + 
+  Total...of.Comparable.Active.listings.prior.current.3.months. + Type + 
+  Units + VFS.Internal.Value + WLV + X..of.comarable.properties + 
+  X..of.comparable.sales + X..of.home.purchased.in.last.3.years + 
+  X..of.Properties.currently.owned + X..of.years.investing +Yearbuilt+MR.UPB+MR.LV +MR.VFS+MR.APP+MR.MCSP+LV.VFS+APP.VFS+UPB.VFS
+
+
+linreg= lm(formula, data = train)
+summary(linreg)
+
+library(Rcmdr)
+linreg.new= stepwise(linreg, direction = "backward", criterion = "AIC")
+```
+
+##New LM model after stepwise
+```{r}
+
+
+summary(linreg.new)
+
+#Apply LM model to test data 
+
+test_pred_lm = predict(linreg.new, newdata=test)
+
+# Evaluate the accuracy
+RMSE_linreg = sqrt(mean(test_pred_lm-test$logloanscore)^2)
+RMSE_linreg
+
+MAE_linreg = mean(abs(test_pred_lm-test$logloanscore))
+MAE_linreg
+
+```
+
+## Set Tree based methods
+```{r}
+
+
+library(caret)
+library(rpart)
+library(rpart.plot)
+
+
+##grow tree CART rpart & rpart2
+fitcontrol=trainControl(method="cv", number = 10)
+train_tree = train(formula, data= train, method="rpart", trControl=fitcontrol, metric="RMSE", maximize=F)
+train_tree2 = train(formula, data= train, method="rpart2", trControl=fitcontrol, metric="RMSE", maximize=F)
+
+plot(train_tree, main="caret:rpart 10 fold cv")
+plot(train_tree2, main="caret:rpart2 10 fold cv")
+
+printres = data.frame()
+printres<- tool.performance(train_tree,test,train,name='rpart.CV', compare=printres, check.lgcount=TRUE)
+printres<- tool.performance(train_tree2,test,train,name='rpart2.CV', compare=printres, check.lgcount=TRUE)
+show(printres)
+print(paste('rpart.CV size: ',format(object.size(train_tree), units='auto')),quote=FALSE)
+print(paste('rpart2.CV size: ',format(object.size(train_tree2), units='auto')),quote=FALSE)
+plot(varImp(train_tree),main='features importance (rpart)')
+rm(train_tree,train_tree2)
+
+
+library(miscTools)
+library(ggplot2)
+
+
+
+##plot tree of trainig model
+```
+
+```{r}
+library(rattle)
+fancyRpartPlot(train_tree$finalModel)
+fancyRpartPlot(train_tree2$finalModel)
+
+```
+
+
+```{r}
+#post(train_tree, file="traintree.pdf", title. = "tree for loanscore")
+
+##predict using decision Tree
+
+test_pred = exp(predict(train_tree, newdata= test))
+test_pred2 = exp(predict(train_tree2, newdata= test))
+
+##check performance of tree model
+train_tree_r2=rSquared(test$Loanscore, test$Loanscore-test_pred)
+train_tree_r2
+
+train_tree_r2_2=rSquared(test$Loanscore, test$Loanscore-test_pred2)
+train_tree_r2_2
+##Plot fit model
+
+
+
+
+
+
+```
+##prune the tree
+
+```{r}
+
+opt = train_tree$cptable[which.min(train_tree$cptable[, "xerror"]),1]
+ptrain_tree = prune(train_tree, cp=opt)
+
+fancyRpartPlot(ptrain_tree, uniform=T, main="Pruned classification tree")
+plot(ptrain_tree, uniform = T)
+text(ptrain_tree, use.n=T, all=T, cex=.5)
+#predict using pruning tree
+
+ptest_pred=predict(ptrain_tree, test)
+
+RMSE_ptree = sqrt(mean(ptest_pred-test$Loanscore)^2)
+RMSE_ptree
+
+MAE_ptree =mean(abs(ptest_pred-test$Loanscore))
+MAE_ptree
+
+```
+##GBM
+
+```{r}
+Grid = expand.grid(n.trees = seq(50,1000,50), interaction.depth = c(30), shrinkage = c(0.1))
+train_tree_gbm = train(formula, data= train, method="gbm", trControl=fitcontrol, metric="RMSE", maximize=F)
+
+plot(train_tree_gbm)
+gbmvarimp=varImp(train_tree_gbm, top=10)
+plot(gbmvarimp)
+
+tool.performance(train_tree_gbm, test, train, name='gbm.CV', check.lgcount=TRUE,check.update=FALSE)
+print(paste('object.size: ',format(object.size(train_tree_gbm ), units='auto')),quote=FALSE)
+plot(varImp(train_tree_gbm),main='features importance')
+rm(train_tree_gbm )
+
+```
+##bagged Mars
+
+```{r}
+Grid <- expand.grid(degree=c(2), nprune = seq(10,90,20))
+train_bagearth = train(formula, data=train, method = 'bagEarth', tuneGrid=Grid, trControl=fitcontrol,metric='RMSE',maximize=FALSE)
+plot(train_bagearth)
+
+tool.performance(train_bagEarth,test,train,name='bagEarth.CV', check.lgcount=TRUE,check.update=FALSE)
+print(paste('object.size: ',format(object.size(train_bagEarth), units='auto')),quote=FALSE)
+plot(varImp(train_bagEarth),main='features importance')
+rm(train_bagEarth)
+
+
+```
+##random Forest method
+```{r}
+library(randomForest)
+
+
+#set.seed(15)
+
+##train oob
+#train_rf=train(formula, data=train, method="rf")
+tc = trainControl("oob")
+train_rf = train(formula, data=train , method='rf', trControl=tc,metric='RMSE')
+plot(train_rf$results$mtry, train_rf$results$RMSE, xlab='mtry', ylab='RMSE oob')
+show(train_rf$results)
+tool.performance(train_rf,test,train,name='rf.oob', check.lgcount=TRUE,check.update=FALSE)
+print(paste('object.size: ',format(object.size(train_rf), units='auto')),quote=FALSE)
+rm(train_rf)
+
+## cv
+
+tc = trainControl("cv",number=10)
+train_rf_cv = train(formula, data=train , method='rf', trControl=tc,metric='RMSE')
+
+plot(train_rf$results$mtry, train_rf$results$RMSE, xlab='mtry', ylab='RMSE',col='blue')
+points(train_rf_cv$results$mtry, train_rf_cv$results$RMSE,col='red')
+legend('topright', c('rf.oob','rf.cv'), col=c('blue','red'),pch=1)
+show(train_rf_cv$results)
+printres = data.frame()
+printres <- tool.performance(train_rf_cv,test,train,name.='rf.cv', compare.=printres, check.lgcount=TRUE)
+printres <- tool.performance(train_rf,test,train,name.='rf.oob', compare.=printres, check.lgcount=TRUE)
+show(printres)
+rm(train_rf,train_rf_cv)
+
+
+
+##
+#train_rf=randomForest(formula, data=train, na.action=na.omit, ntree=300,mtry=2, proximity=T)
+#train_rf=train(formula, data=train, method="rf")
+plot(train_rf)
+
+##importance of each variables
+imp = imp <- as.data.frame(sort(importance(train_rf)[,1],decreasing = TRUE),optional = T)
+names(imp) = "%Inc MSE"
+imp
+
+## prediction test data
+test_pred3= predict(train_rf, newdata=test)
+
+## R^2 and MSE
+train_r2= rSquared(test$Loanscore, test$Loanscore-test_pred3)
+train_r2
+#1-sum((test$Loanscore-test_pred3)^2)/sum((test$Loanscore-mean(test$Loanscore))^2)#round(cor(test$Loanscore, test_pred3),2)
+
+MSE = mean(test$Loanscore - test_pred3)
+MSE
+
+RMSE_rf= sqrt(mean(test_pred3-test$Loanscore)^2)
+RMSE_rf
+
+MAE_rf = mean(abs(test_pred3-test$Loanscore))
+MAE_rf
+
+##plot importance variables
+varImpPlot(train_rf, main="", cex=0.7)
+
+```
+
+
+##Comparison of performance of models
+
+```{r}
+##Accuracy 
+accuracy = data.frame(Method = c("Baseline","Linear Regression","Full tree","Pruned tree","Random forest"),
+                         RMSE   = c(RMSE_baseline,RMSE_linreg,RMSE_tree,RMSE_ptree,RMSE_rf),
+                         MAE    = c(MAE_baseline,MAE_linreg,MAE_tree,MAE_ptree,MAE_rf)) 
+
+# Round it
+accuracy$RMSE = round(accuracy$RMSE, 4)
+accuracy$MAE = round(accuracy$MAE, 4)
+
+accuracy
+
+
+# predictions comparison
+
+predictions_comp = data.frame(actual = test$Loanscore,
+                              baseline = best_guess,
+                              linear.regression = test_pred_lm,
+                              full.tree = test_pred,
+                              pruned.tree = ptest_pred,
+                              random.forest = test_pred3)
+head(predictions_comp)
+
+#reshape dataset
+library(tidyr)
+
+all.predictions = gather(predictions_comp,key = model,value = predictions,2:6)
+
+head(all.predictions)
+tail(all.predictions)
+
+
+#plot performence of prediciton model with actual data
+
+ggplot(data = all.predictions,aes(x = actual, y = predictions)) + 
+  geom_point(colour = "blue") + 
+  geom_abline(intercept = 0, slope = 1, colour = "red") +
+  geom_vline(xintercept = 400, colour = "green", linetype = "dashed") +
+  facet_wrap(~ model,ncol = 2) + 
+  coord_cartesian(xlim = c(120,1000),ylim = c(120,1100)) +
+  ggtitle("Predicted vs. Actual, by model")
+
+library(gbm)
+train_gbm=gbm(formula, data=train, n.trees=1000, distribution = "gaussian")
+test_gbm=predict.gbm(train_gbm, test, n.trees = 1000)
+train_r3= rSquared(test$Loanscore, test$Loanscore-test_gbm)
+
+```

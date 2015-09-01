@@ -1,0 +1,314 @@
+Classification Model
+===========================================
+
+##Classification method for predictive modelling
+
+###Basic settings
+
+
+```{r}
+echo = TRUE
+setwd("c:/Users/jasmine.qi/Documents/Classification")
+library(Rcmdr)
+library(lattice)
+library(ggplot2)
+library(caret)
+library(rpart)
+library(party)
+library(gmodels)
+library(pROC)
+library(rattle)
+library(randomForest)
+library(ROCR)
+```
+### Descriptive
+```{r}
+## Load files which in the Classification folder
+total= read.csv("derive.csv")
+dim(total)
+
+#Classify datasets to Good Loan and Bad Loan
+
+#Summary of Good loans and Bad loans
+local({
+  .Table <- with(total, table(Classifier))
+  cat("\ncounts:\n")
+  print(.Table)
+  cat("\npercentages:\n")
+  print(round(100*.Table/sum(.Table), 2))
+})
+
+# Histogram of Loanscores
+
+x=total$Loanscore
+h=hist(x, col = "red", breaks = 20, main = "Breaks=20 of mean", xlab=" loan performance scores" )
+xfit<-seq(min(x),max(x),length=40) 
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x)) 
+yfit <- yfit*diff(h$mids[1:2])*length(x) 
+lines(xfit, yfit, col="blue", lwd=2)
+
+
+# randomsize 70% of row of data as training set and test set
+#set.seed(1)
+
+indexes = sample(1:nrow(total), size= 0.7*nrow(total))
+train = total[indexes, ]
+test = total[-indexes, ]
+
+nrow(train)
+nrow(test)
+```
+
+### summary of predictors that model used
+
+```{r}
+
+
+
+formula=Classifier ~ Absorption.Rate...prior.4.6.months. + 
+  Absorption.Rate...prior.7.12.months. + 
+  Absorption.Rate...prior.current.3.months. + Appraisal.Monthly.Rent + 
+  Appraisal.price + Assignment.Type + Bankrupcy + Baths + Bedrooms + 
+  Borrower.Age.Group + Borrower.Rent + Built.up + Charge.offs + 
+  Closed.Past.Auto.Late + Closed.Past.Education.Late + 
+  Closed.Past.Installment.Late + Closed.Past.Mortgage.Late + 
+  Closed.Revolving.Late + Collections + Comparable.properties.lower.price + 
+  Comparable.properties.upper.price + Comparable.sale.lower.price.range + 
+  Comparable.sale.upper.price.range + Condition + Credit.Score + Debt.High.Credit.... + Demand.Supply + 
+  distancemiles + DOM + Expected.cost.to.Rehab63 + Expected.flip.price + 
+  Foreclosure + Foreclosure.sales + 
+  Full.or.Part.Time.investor + Growth + Indicated.Value.by.Cost.Approach + 
+  Indicated.Value.by.Income.Approach + Interest.Rate + Lending.Value + 
+  Loan.Purpose + Loan.Term + Loan.Type + Location + LTV + Male.Female + 
+  Marketing.Time + Median.Comparable.List.Price.prior.4.6.months. + 
+  Median.Comparable.List.Price.prior.7.12.months. + 
+  Median.Comparable.List.Price.prior.current.3.months. + 
+  median.Comparable.listings.Days.on.Market.prior.4.6.months. + 
+  median.Comparable.listings.Days.on.Market.prior.7.12.months. + 
+  median.Comparable.listings.Days.on.Market.prior.current.3.months. + 
+  Median.Comparable.Sale.Price..prior.4.6.months. + 
+  Median.Comparable.Sale.Price..prior.7.12.months. + 
+  Median.Comparable.Sale.Price..prior.current.3.months. + 
+  Median.Comparable.sales.Days.on.market.prior.4.6.months. + 
+  Median.Comparable.sales.Days.on.market.prior.7.12.months. + 
+  Median.Comparable.sales.Days.on.market.prior.current.3.months. + 
+  Median.Sale.Price.a.s..of.List.Price.prior.4.6.months. + 
+  Median.Sale.Price.a.s..of.List.Price.prior.7.12.months. + 
+  Median.Sale.Price.a.s..of.List.Price.prior.current.3.months. + 
+  Months.of.Housing.Supply.prior.4.6.months. + 
+  Months.of.Housing.Supply.prior.7.12.months. + 
+  Months.of.Housing.Supply.prior.current.3.months. + Occupant + 
+  Open.Current.Auto.Late + Open.Current.Education.Late + 
+  Open.Current.Installment.Late + Open.Current.Mortgage.Late + 
+  Open.Current.Revolving.Late  + Origination.UPB + 
+  OrigTransdays + Price.of.Prior.Sale.Transfer+ 
+  Property.Values + Rent.Own + Repeat + Rooms + Sale.Price + Size + 
+  Square.feet.of.gross.living.area  + 
+  Subject..PropertyState + Total...of.Comarable.Sales...prior.4.6.months. + 
+  Total...of.Comarable.Sales...prior.7.12.months. + 
+  Total...of.Comarable.Sales...prior.current.3.months. + 
+  Total...of.Comparable.Active.listings.prior.4.6.months. + 
+  Total...of.Comparable.Active.listings.prior.7.12.months. + 
+  Total...of.Comparable.Active.listings.prior.current.3.months. + Type + 
+  Units + VFS.Internal.Value + WLV + X..of.comarable.properties + 
+  X..of.comparable.sales + X..of.home.purchased.in.last.3.years + 
+  X..of.Properties.currently.owned + X..of.years.investing +Yearbuilt
+```
+
+### A simple tree model-CART 
+```{r}
+## A simple tree model
+
+ctrl_rpart=trainControl(method ="cv", number=10, summaryFunction = twoClassSummary, classProbs=TRUE)
+train_tree= train(formula, data=train, method="rpart", tuneLength=10, metric="ROC",trControl=ctrl_rpart)
+
+##plot tree of trainig model
+fancyRpartPlot(train_tree$finalModel, cex=0.7, main = "Tree of CART Model", sub="")
+plot(varImp(train_tree), top=15, xlab="Variable Imortance for CART Models")
+
+##Predict test sets
+test_pred = predict(train_tree, test)
+cart=confusionMatrix(test_pred, test$Classifier)
+
+cart
+#predict class probabilities
+test_predprob = predict(train_tree, test, type="prob")
+head(test_predprob)
+
+##plot ROC curve
+test_predroc = roc(response=test$Classifier, predictor = test_predprob$Bad, levels = rev(levels(test$Classifier)))
+
+
+
+
+```
+### C5 model
+```{r}
+
+##c5
+grid = expand.grid(.model="tree",
+                   .trials=c(1:100),
+                   .winnow=F)
+train_treec5 = train(formula,data=train, method="C5.0", metric="ROC", tuneGrid=grid, trControl=ctrl_rpart)
+
+
+
+## plot c5 model Tree
+plot(train_treec5)
+## predict test datasets and Accurarcy
+
+test_predc5= predict(train_treec5, test)
+c5=confusionMatrix(test_predc5, test$Classifier)
+
+c5
+#Test set ROC Curve
+
+test_predc5prob = predict(train_treec5, test, type = "prob")
+head(test_predc5prob)
+
+test_predc5roc = roc(response=test$Classifier, predictor = test_predc5prob$Bad, levels = rev(levels(test$Classifier)))
+
+```
+
+
+##Random Forest method
+
+```{r}
+
+#set.seed(1)
+
+#Regardless unbalanced class
+train_rf=train(formula, data=train, method="rf", trControl=ctrl_rpart, prox=T, allowParallel=T, metric="ROC")
+
+#Consider unbalanced class - Down sampling Good loans
+train_rf2=randomForest(formula, data=train, ntree=train_rf$finalModel$ntree, mtry=train_rf$finalModel$mtry, proximity=T, strata=train$Classifier,sampsize=rep(min(table(train$Classifier)), nlevels(train$Classifier)))
+
+
+#Unbalanced
+train_rf$finalModel
+
+#Balanced
+train_rf2
+
+## prediction test data
+
+test_predrf=predict(train_rf, newdata=test) 
+test_predrf2=predict(train_rf2, test) 
+
+#Unbalanced
+cftable_rf=CrossTable(test$Classifier, test_predrf, digits=1, prop.r = F, prop.t = F, prop.chisq = F, chisq = F, data=test)
+table_rf =table(test$Classifier, test_predrf)
+
+## Accuracy of test unbalanced class
+rf=confusionMatrix(test_predrf, test$Classifier)
+#Balanced
+
+rf2=confusionMatrix(test_predrf2, test$Classifier)
+
+## plot ROC curve
+
+## Test sets ROC curve
+test_predrfprob =  predict(train_rf, test, type = "prob")
+head(test_predrfprob)
+test_predrfroc = roc(response=test$Classifier, predictor = test_predrfprob$Bad, levels = rev(levels(test$Classifier)))
+
+test_predrf2prob =  predict(train_rf2, test, type = "prob")
+head(test_predrf2prob)
+test_predrf2roc = roc(response=test$Classifier, predictor = test_predrfprob$Bad, levels = rev(levels(test$Classifier)))
+
+
+
+
+
+##plot importance variables
+#importance(train_rf)
+par(mfrow=c(1,2))
+plot(varImp(train_rf), top=15, main="Unbalanced RandomFOrest")
+varImpPlot(train_rf2, n=15, main="Balanced RandomFOrest")
+```
+
+##GBM Gradient Boosting model
+```{r}
+
+
+train_gbm = train(formula, data=train, method="gbm", trControl=ctrl_rpart, metric="ROC", maximize=F, verbose=F)
+plot(train_gbm)
+
+
+##importance virables for GBM model
+gbmImp = varImp(train_gbm, scale=F)
+plot(gbmImp, top=15, main="GBM model")
+
+#predict testdatasets
+test_gbm=predict(train_gbm, test)
+cftable_gbm=CrossTable(test$Classifier, test_gbm, digits=1, prop.r = F, prop.t = F, prop.chisq = F, chisq = F, data=test)
+table_gbm =table(test$Classifier, test_gbm)
+
+#Accuracy of Gradient Bossting model
+gbm=confusionMatrix(test_gbm, test$Classifier)
+
+#ROC figure
+test_predgbmprob =  predict(train_gbm, test, type = "prob")
+head(test_predgbmprob)
+
+test_predgbmroc = roc(response=test$Classifier, predictor = test_predgbmprob$Bad, levels = rev(levels(test$Classifier)))
+
+
+
+
+
+```
+
+
+
+## Summary of all the modeling
+###ROC
+```{r}
+resamps= resamples(list(CART=train_tree, C5=train_treec5, rfUnbalance=train_rf, GBM=train_gbm))
+
+resamps
+# all the performence results
+summary(resamps)
+
+# Figures of comparison of six models
+
+bwplot(resamps,layout=c(3,1))
+
+dotplot(resamps, metric="ROC")
+
+```
+C5 model covers more in ROC figures, GBM has less sensitivity.
+
+###Accuracy table for Models
+
+
+```{r}
+
+accuracy1=as.data.frame(cart$overall[1])
+colnames(accuracy1)="CART"
+accuracy2=as.data.frame(c5$overall[1])
+colnames(accuracy2)="C5"
+accuracy3=as.data.frame(rf$overall[1])
+colnames(accuracy3)="Unbalanced RF"
+accuracy4=as.data.frame(rf2$overall[1])
+colnames(accuracy4)="balanced RF"
+accuracy5=as.data.frame(gbm$overall[1])
+colnames(accuracy5)="GBM"
+accuracy=cbind(accuracy1, accuracy2, accuracy3, accuracy4, accuracy5)
+
+
+accuracy
+```
+
+Unbalanced Random Forest has the highest accuracy, but the Blanced Random Forest has the lowest accuracy.
+
+### Sensitivity of modeling fitting Comparison
+
+```{r}
+plot(test_predroc, type="S", lty= 1, col="red", print.thres = 0.5, main="Classification ROC Comparison")
+plot(test_predc5roc,lty=2, add = T, col="green")
+plot(test_predrfroc, add= T, col="orange", lty=3)
+plot(test_predrf2roc, add = T, col="blue", lty=4)
+plot(test_predgbmroc, col="pink", add=T, lty=5)
+legend(0.6, 0.6, c("CART Tree", "C5 Tree", "Unbalanced Random Forest", "Balanced Random Forest", "GBM"), col=c("red", "green", "orange", "blue", "pink"), lwd = 5)
+```

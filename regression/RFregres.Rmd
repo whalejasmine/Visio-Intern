@@ -1,0 +1,350 @@
+---
+title: "RFregres"
+output: html_document
+---
+##Treebased method for predictive modelling
+  
+```{r}
+
+echo = TRUE
+setwd("c:/Users/jasmine.qi/Documents/data cleaning")
+
+total.cld= read.csv("anaclean.csv")
+total= read.csv("Derivedata.csv")
+
+total=total[!(is.na(total$Classifier)),]
+
+
+##randomsize 70% of row of data as training set and test set
+
+
+#set.seed(15)
+
+indexes = sample(1:nrow(total), size= 0.7*nrow(total))
+train = total[indexes, ]
+test = total[-indexes, ]
+
+nrow(train)
+nrow(test)
+
+library(ggplot2)
+
+## plot train and test dataset
+
+group <- rep(NA,842)
+group <- ifelse(seq(1,842) %in% indexes,"Train","Test")
+df <- data.frame(LoanID=total$LoanID,Loanscores=total$Loanscore)
+
+# ...and plot it
+ggplot(df,aes(x = LoanID,y = Loanscores, color = group)) + geom_point() +
+  scale_color_discrete(name="") + theme(legend.position="top")
+
+```
+##Baseline model
+
+```{r}
+#predict the mean of the training data
+best_guess = mean(train$Loanscore)
+
+RMSE_baseline= sqrt(mean(best_guess-test$Loanscore)^2)
+RMSE_baseline
+
+MAE_baseline= mean(abs(best_guess-test$Loanscore))
+MAE_baseline
+
+```
+```{r}
+
+##Multilinear regression
+
+formula_mlg=logloanscore ~ Absorption.Rate...prior.4.6.months. + 
+  Absorption.Rate...prior.7.12.months. + 
+  Absorption.Rate...prior.current.3.months. + Appraisal.Monthly.Rent + 
+  Appraisal.price + Assignment.Type + Bankrupcy + Baths + Bedrooms + 
+  Borrower.Age.Group + Borrower.Rent + Built.up + Charge.offs + 
+  Closed.Past.Auto.Late + Closed.Past.Education.Late + 
+  Closed.Past.Installment.Late + Closed.Past.Mortgage.Late + 
+  Closed.Revolving.Late + Collections + Comparable.properties.lower.price + 
+  Comparable.properties.upper.price + Comparable.sale.lower.price.range + 
+  Comparable.sale.upper.price.range + Condition + Credit.Score  + 
+  Current.Rent + Debt.High.Credit.... + Demand.Supply + 
+  distancemiles + DOM + Expected.cost.to.Rehab63 + Expected.flip.price + 
+  Foreclosure + Foreclosure.sales + 
+  Full.or.Part.Time.investor + Growth + Indicated.Value.by.Cost.Approach + 
+  Indicated.Value.by.Income.Approach + Interest.Rate + Lending.Value + 
+  Loan.Purpose + Loan.Term + Loan.Type + Location + LTV + Male.Female + 
+  Marketing.Time + Median.Comparable.List.Price.prior.4.6.months. + 
+  Median.Comparable.List.Price.prior.7.12.months. + 
+  Median.Comparable.List.Price.prior.current.3.months. + 
+  median.Comparable.listings.Days.on.Market.prior.4.6.months. + 
+  median.Comparable.listings.Days.on.Market.prior.7.12.months. + 
+  median.Comparable.listings.Days.on.Market.prior.current.3.months. + 
+  Median.Comparable.Sale.Price..prior.4.6.months. + 
+  Median.Comparable.Sale.Price..prior.7.12.months. + 
+  Median.Comparable.Sale.Price..prior.current.3.months. + 
+  Median.Comparable.sales.Days.on.market.prior.4.6.months. + 
+  Median.Comparable.sales.Days.on.market.prior.7.12.months. + 
+  Median.Comparable.sales.Days.on.market.prior.current.3.months. + 
+  Median.Sale.Price.a.s..of.List.Price.prior.4.6.months. + 
+  Median.Sale.Price.a.s..of.List.Price.prior.7.12.months. + 
+  Median.Sale.Price.a.s..of.List.Price.prior.current.3.months. + 
+  Months.of.Housing.Supply.prior.4.6.months. + 
+  Months.of.Housing.Supply.prior.7.12.months. + 
+  Months.of.Housing.Supply.prior.current.3.months. + Occupant + 
+  Open.Current.Auto.Late + Open.Current.Education.Late + 
+  Open.Current.Installment.Late + Open.Current.Mortgage.Late + 
+  Open.Current.Revolving.Late  + Origination.UPB + 
+  OrigTransdays + Price.of.Prior.Sale.Transfer+ 
+  Property.Values + Rent.Own + Repeat + Rooms + Sale.Price + Size + 
+  Square.feet.of.gross.living.area  + 
+  Subject..PropertyState + Total...of.Comarable.Sales...prior.4.6.months. + 
+  Total...of.Comarable.Sales...prior.7.12.months. + 
+  Total...of.Comarable.Sales...prior.current.3.months. + 
+  Total...of.Comparable.Active.listings.prior.4.6.months. + 
+  Total...of.Comparable.Active.listings.prior.7.12.months. + 
+  Total...of.Comparable.Active.listings.prior.current.3.months. + Type + 
+  Units + VFS.Internal.Value + WLV + X..of.comarable.properties + 
+  X..of.comparable.sales + X..of.home.purchased.in.last.3.years + 
+  X..of.Properties.currently.owned + X..of.years.investing +Yearbuilt+MR.UPB+MR.LV +MR.VFS+MR.APP+MR.MCSP+LV.VFS+APP.VFS+UPB.VFS
+
+
+
+linreg = lm (formula_mlg, data=train)
+summary(linreg)
+
+library(Rcmdr)
+linreg.new= stepwise(linreg, direction = "backward", criterion = "AIC")
+```
+
+##New LM model after stepwise
+```{r}
+
+
+summary(linreg.new)
+
+#Apply LM model to test data 
+
+test_pred_lm = predict(linreg.new, newdata=test)
+
+# Evaluate the accuracy
+RMSE_linreg = sqrt(mean(test_pred_lm-test$logloanscore)^2)
+RMSE_linreg
+
+MAE_linreg = mean(abs(test_pred_lm-test$logloanscore))
+MAE_linreg
+
+```
+
+## Set Tree based methods
+```{r}
+formula=Loanscore ~ Absorption.Rate...prior.4.6.months. + 
+  Absorption.Rate...prior.7.12.months. + 
+  Absorption.Rate...prior.current.3.months. + Appraisal.Monthly.Rent + 
+  Appraisal.price + Assignment.Type + Bankrupcy + Baths + Bedrooms + 
+  Borrower.Age.Group + Borrower.Rent + Built.up + Charge.offs + 
+  Closed.Past.Auto.Late + Closed.Past.Education.Late + 
+  Closed.Past.Installment.Late + Closed.Past.Mortgage.Late + 
+  Closed.Revolving.Late + Collections + Comparable.properties.lower.price + 
+  Comparable.properties.upper.price + Comparable.sale.lower.price.range + 
+  Comparable.sale.upper.price.range + Condition + Credit.Score  + 
+  Current.Rent + Debt.High.Credit.... + Demand.Supply + 
+  distancemiles + DOM + Expected.cost.to.Rehab63 + Expected.flip.price + 
+  Foreclosure + Foreclosure.sales + 
+  Full.or.Part.Time.investor + Growth + Indicated.Value.by.Cost.Approach + 
+  Indicated.Value.by.Income.Approach + Interest.Rate + Lending.Value + 
+  Loan.Purpose + Loan.Term + Loan.Type + Location + LTV + Male.Female + 
+  Marketing.Time + Median.Comparable.List.Price.prior.4.6.months. + 
+  Median.Comparable.List.Price.prior.7.12.months. + 
+  Median.Comparable.List.Price.prior.current.3.months. + 
+  median.Comparable.listings.Days.on.Market.prior.4.6.months. + 
+  median.Comparable.listings.Days.on.Market.prior.7.12.months. + 
+  median.Comparable.listings.Days.on.Market.prior.current.3.months. + 
+  Median.Comparable.Sale.Price..prior.4.6.months. + 
+  Median.Comparable.Sale.Price..prior.7.12.months. + 
+  Median.Comparable.Sale.Price..prior.current.3.months. + 
+  Median.Comparable.sales.Days.on.market.prior.4.6.months. + 
+  Median.Comparable.sales.Days.on.market.prior.7.12.months. + 
+  Median.Comparable.sales.Days.on.market.prior.current.3.months. + 
+  Median.Sale.Price.a.s..of.List.Price.prior.4.6.months. + 
+  Median.Sale.Price.a.s..of.List.Price.prior.7.12.months. + 
+  Median.Sale.Price.a.s..of.List.Price.prior.current.3.months. + 
+  Months.of.Housing.Supply.prior.4.6.months. + 
+  Months.of.Housing.Supply.prior.7.12.months. + 
+  Months.of.Housing.Supply.prior.current.3.months. + Occupant + 
+  Open.Current.Auto.Late + Open.Current.Education.Late + 
+  Open.Current.Installment.Late + Open.Current.Mortgage.Late + 
+  Open.Current.Revolving.Late  + Origination.UPB + 
+  OrigTransdays + Price.of.Prior.Sale.Transfer+ 
+  Property.Values + Rent.Own + Repeat + Rooms + Sale.Price + Size + 
+  Square.feet.of.gross.living.area  + 
+  Subject..PropertyState + Total...of.Comarable.Sales...prior.4.6.months. + 
+  Total...of.Comarable.Sales...prior.7.12.months. + 
+  Total...of.Comarable.Sales...prior.current.3.months. + 
+  Total...of.Comparable.Active.listings.prior.4.6.months. + 
+  Total...of.Comparable.Active.listings.prior.7.12.months. + 
+  Total...of.Comparable.Active.listings.prior.current.3.months. + Type + 
+  Units + VFS.Internal.Value + WLV + X..of.comarable.properties + 
+  X..of.comparable.sales + X..of.home.purchased.in.last.3.years + 
+  X..of.Properties.currently.owned + X..of.years.investing +Yearbuilt+MR.UPB+MR.LV +MR.VFS+MR.APP+MR.MCSP+LV.VFS+APP.VFS+UPB.VFS
+
+
+library(rpart)
+library(rpart.plot)
+
+
+##grow tree
+train_tree = rpart(formula, data= train)
+
+train_tree$cptable
+plotcp(train_tree)
+
+library(miscTools)
+library(ggplot2)
+
+
+## create additional plots 
+
+par(mfrow=c(1,2))
+rsq.rpart(train_tree)
+
+##plot tree of trainig model
+```
+
+```{r}
+library(rattle)
+fancyRpartPlot(train_tree)
+plot(train_tree, uniform = T)
+text(train_tree, use.n=T, all=T, cex=.5)
+
+```
+
+
+```{r}
+#post(train_tree, file="traintree.pdf", title. = "tree for loanscore")
+
+##predict using decision Tree
+
+test_pred = predict(train_tree, newdata= test)
+
+##check performance of tree model
+train_tree_r2=rSquared(test$Loanscore, test$Loanscore-test_pred)
+MSE_tree = mean(test$Loanscore - test_pred)
+train_tree_r2
+MSE_tree
+
+RMSE_tree = sqrt(mean(test_pred-test$Loanscore)^2)
+RMSE_tree
+
+MAE_tree = mean(abs(test_pred-test$Loanscore))
+MAE_tree
+
+
+
+
+```
+##prune the tree
+
+```{r}
+
+opt = train_tree$cptable[which.min(train_tree$cptable[, "xerror"]),1]
+ptrain_tree = prune(train_tree, cp=opt)
+
+fancyRpartPlot(ptrain_tree, uniform=T, main="Pruned classification tree")
+
+#predict using pruning tree
+
+ptest_pred=predict(ptrain_tree, test)
+
+RMSE_ptree = sqrt(mean(ptest_pred-test$Loanscore)^2)
+RMSE_ptree
+
+MAE_ptree =mean(abs(ptest_pred-test$Loanscore))
+MAE_ptree
+
+```
+
+
+##random Forest method
+```{r}
+library(randomForest)
+
+
+#set.seed(15)
+
+
+train_rf=randomForest(formula, data=train, na.action=na.omit, ntree=850,mtry=15, proximity=T)
+train_rf
+plot(train_rf)
+
+##importance of each variables
+imp = imp <- as.data.frame(sort(importance(train_rf)[,1],decreasing = TRUE),optional = T)
+names(imp) = "%Inc MSE"
+imp
+
+## prediction test data
+test_pred3= predict(train_rf, newdata=test)
+
+## R^2 and MSE
+train_r2= rSquared(test$Loanscore, test$Loanscore-test_pred3)
+train_r2
+#1-sum((test$Loanscore-test_pred3)^2)/sum((test$Loanscore-mean(test$Loanscore))^2)#round(cor(test$Loanscore, test_pred3),2)
+
+MSE = mean(test$Loanscore - test_pred3)
+MSE
+
+RMSE_rf= sqrt(mean(test_pred3-test$Loanscore)^2)
+RMSE_rf
+
+MAE_rf = mean(abs(test_pred3-test$Loanscore))
+MAE_rf
+
+##plot importance variables
+varImpPlot(train_rf, main="", cex=0.7)
+
+```
+##Comparison of performance of models
+
+```{r}
+##Accuracy 
+accuracy = data.frame(Method = c("Baseline","Linear Regression","Full tree","Pruned tree","Random forest"),
+                         RMSE   = c(RMSE_baseline,RMSE_linreg,RMSE_tree,RMSE_ptree,RMSE_rf),
+                         MAE    = c(MAE_baseline,MAE_linreg,MAE_tree,MAE_ptree,MAE_rf)) 
+
+# Round it
+accuracy$RMSE = round(accuracy$RMSE, 4)
+accuracy$MAE = round(accuracy$MAE, 4)
+
+accuracy
+
+
+# predictions comparison
+test_predlm=exp(test_pred_lm)
+predictions_comp = data.frame(actual = test$Loanscore,
+                              baseline = best_guess,
+                              linear.regression = test_predlm,
+                              full.tree = test_pred,
+                              pruned.tree = ptest_pred,
+                              random.forest = test_pred3)
+head(predictions_comp)
+
+#reshape dataset
+library(tidyr)
+
+all.predictions = gather(predictions_comp,key = model,value = predictions,2:6)
+
+head(all.predictions)
+tail(all.predictions)
+
+
+#plot performence of prediciton model with actual data
+
+ggplot(data = all.predictions,aes(x = actual, y = predictions)) + 
+  geom_point(colour = "blue") + 
+  geom_abline(intercept = 0, slope = 1, colour = "red") +
+  geom_vline(xintercept = 5.5, colour = "green", linetype = "dashed") +
+  facet_wrap(~ model,ncol = 2) + 
+  coord_cartesian(xlim = c(3,10),ylim = c(5.5,10)) +
+  ggtitle("Predicted vs. Actual, by model")
+
+
+```
